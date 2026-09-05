@@ -88,8 +88,15 @@ class MagRgbDevice {
 		device.setControllableLeds(names, positions);
 	}
 
+	/* SignalRGB injects ControllableParameters as globals only once it has built the
+	 * property model, and Render() can fire before that - or during a rebuild, which
+	 * happens whenever a property is added or renamed. A bare reference to an
+	 * undeclared identifier throws a ReferenceError in JS, so every property read
+	 * below is guarded with typeof and falls back to its declared default. */
 	frameInterval() {
-		switch (UpdateRate) {
+		const rate = (typeof UpdateRate === "undefined") ? "30fps" : UpdateRate;
+
+		switch (rate) {
 			case "10fps": return 100;
 			case "20fps": return 50;
 			case "45fps": return 22;
@@ -117,18 +124,27 @@ class MagRgbDevice {
 	 *   uint16 panelCount
 	 *   per panel: uint16 panelId, uint8 R, G, B, W, uint16 transitionTime  */
 	buildFrame(shutdown) {
-		const n  = this.zones;
-		const tt = Math.max(0, Math.min(10, parseInt(TransitionTime, 10) || 0));
+		const n = this.zones;
+
+		const rawTt = (typeof TransitionTime === "undefined") ? 0 : TransitionTime;
+		const tt    = Math.max(0, Math.min(10, parseInt(rawTt, 10) || 0));
+
 		// Panel ID 0 is physically at the RIGHT-hand end, so the canvas (left to right)
 		// maps to descending panel IDs by default. FlipDirection is for a strip that
 		// has been mounted the other way round.
-		const flip = (FlipDirection === true || FlipDirection === "true");
+		const rawFlip = (typeof FlipDirection === "undefined") ? false : FlipDirection;
+		const flip    = (rawFlip === true || rawFlip === "true");
+
+		const mode = (typeof LightingMode === "undefined") ? "Canvas" : LightingMode;
 		const packet = [(n >> 8) & 0xFF, n & 0xFF];
 
 		let forced = null;
 
-		if (shutdown) { forced = [0, 0, 0]; }
-		else if (LightingMode === "Forced") { forced = hexToRgb(forcedColor); }
+		if (shutdown) {
+			forced = [0, 0, 0];
+		} else if (mode === "Forced") {
+			forced = (typeof forcedColor === "undefined") ? [0, 155, 222] : hexToRgb(forcedColor);
+		}
 
 		for (let i = 0; i < n; i++) {
 			const id = flip ? i : (n - 1 - i);
@@ -177,7 +193,9 @@ export function Render() {
 export function Shutdown(suspend) {
 	MAGRGB.sendFrame(true);
 
-	if (turnOffOnShutdown) { MAGRGB.setPower(false); }
+	const off = (typeof turnOffOnShutdown === "undefined") ? false : turnOffOnShutdown;
+
+	if (off === true || off === "true") { MAGRGB.setPower(false); }
 }
 
 /* =====================================================================================
