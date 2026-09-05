@@ -6,6 +6,7 @@ export function Size() { return [41, 1]; }
 export function DefaultPosition() { return [0, 0]; }
 export function DefaultScale() { return 8.0; }
 export function DefaultComponentBrand() { return "CompGen"; }
+export function ImageUrl() { return ICON_URL; }
 
 /* global
 controller:readonly
@@ -45,6 +46,8 @@ export function ControllableParameters() {
  *     reads "*ExtControl*".
  * ===================================================================================== */
 
+const ICON_URL = "https://raw.githubusercontent.com/Pop-Code/Secretlab-MagRGB-SignalRGB-plugin/main/assets/icon.png";
+
 const MODEL_ZONES     = { "NL72S2": 41 };
 const FALLBACK_ZONES  = 41;
 const OPENAPI_PORT    = 16021;
@@ -58,6 +61,23 @@ const REARM_INTERVAL  = 10000;
 
 let MAGRGB;
 
+/* SignalRGB injects the ControllableParameters as globals, but the docs make no
+ * guarantee that this happens before the first Render(), and a bare reference to an
+ * identifier that does not exist yet throws a ReferenceError rather than yielding
+ * undefined. Read them all here, in one place, against defaults that mirror
+ * ControllableParameters() exactly - so a renamed or misspelled property shows up as
+ * one wrong default in this function instead of silently at six call sites. */
+function settings() {
+	return {
+		mode:       (typeof LightingMode      === "undefined") ? "Canvas"  : LightingMode,
+		forced:     (typeof forcedColor       === "undefined") ? "#009bde" : forcedColor,
+		rate:       (typeof UpdateRate        === "undefined") ? "30fps"   : UpdateRate,
+		flip:       (typeof FlipDirection     === "undefined") ? false     : FlipDirection,
+		transition: (typeof TransitionTime    === "undefined") ? 0         : TransitionTime,
+		offOnExit:  (typeof turnOffOnShutdown === "undefined") ? false     : turnOffOnShutdown,
+	};
+}
+
 /* =====================================================================================
  *  Device
  * ===================================================================================== */
@@ -70,8 +90,9 @@ class MagRgbDevice {
 		this.token      = ctrl.token;
 		this.zones      = ctrl.zones || FALLBACK_ZONES;
 		this.streamPort = ctrl.streamPort || EXTCONTROL_PORT;
-		this.lastArm    = 0;
-		this.lastFrame  = 0;
+		this.lastArm     = 0;
+		this.lastFrame   = 0;
+		this.armVerified = false;
 	}
 
 	setupLeds() {
@@ -87,14 +108,7 @@ class MagRgbDevice {
 		device.setControllableLeds(names, positions);
 	}
 
-	/* SignalRGB injects ControllableParameters as globals only once it has built the
-	 * property model, and Render() can fire before that - or during a rebuild, which
-	 * happens whenever a property is added or renamed. A bare reference to an
-	 * undeclared identifier throws a ReferenceError in JS, so every property read
-	 * below is guarded with typeof and falls back to its declared default. */
-	frameInterval() {
-		const rate = (typeof UpdateRate === "undefined") ? "30fps" : UpdateRate;
-
+	frameInterval(rate) {
 		switch (rate) {
 			case "10fps": return 100;
 			case "20fps": return 50;
@@ -103,18 +117,50 @@ class MagRgbDevice {
 		}
 	}
 
-	/* Hand every LED over to us. Exactly what Nanoleaf Desktop sends for this model. */
+	/* Hand every LED over to us. Exactly what Nanoleaf Desktop sends for this model.
+	 *
+	 * The device answers this PUT with 204 No Content and an empty body, which
+	 * SignalRGB's XHR surfaces as status 0 - indistinguishable from a transport
+	 * failure. So the status is not trusted at all: the result is confirmed once, by
+	 * reading back /effects/select, which returns a real body and therefore a real
+	 * status. Only 401/403 is acted on immediately, since that means a dead token. */
 	armExtControl() {
 		this.lastArm = Date.now();
-		const url = "http://" + this.ip + ":" + this.port + "/api/v1/" + this.token + "/effects";
-		Http.request("PUT", url, { write: { command: "display", animType: "extControl", extControlVersion: "v2" } }, (xhr) => {
+		const base = "http://" + this.ip + ":" + this.port + "/api/v1/" + this.token;
+
+		Http.request("PUT", base + "/effects",
+			{ write: { command: "display", animType: "extControl", extControlVersion: "v2" } },
+			(xhr) => {
+				if (xhr.readyState !== 4) { return; }
+
+				if (xhr.status === 401 || xhr.status === 403) {
+					device.log("extControl rejected: token no longer valid (HTTP " + xhr.status + ")");
+
+					return;
+				}
+
+				if (this.armVerified) { return; }
+				this.verifyExtControl();
+			});
+	}
+
+	/* GET returns a body, so its status is meaningful. Expected: "*ExtControl*" */
+	verifyExtControl() {
+		const url = "http://" + this.ip + ":" + this.port + "/api/v1/" + this.token + "/effects/select";
+		Http.request("GET", url, null, (xhr) => {
 			if (xhr.readyState !== 4) { return; }
 
-			// The device answers 204 No Content with an empty body, which SignalRGB's
-			// XHR reports as status 0. Treat that as success - a real failure shows up
-			// as 401/403 (bad token) or 404.
-			if (xhr.status !== 200 && xhr.status !== 204 && xhr.status !== 0) {
-				device.log("extControl arm failed, HTTP " + xhr.status);
+			if (xhr.status !== 200) {
+				device.log("could not verify extControl, HTTP " + xhr.status);
+
+				return;
+			}
+
+			if (xhr.response && xhr.response.indexOf("ExtControl") !== -1) {
+				this.armVerified = true;
+				device.log("extControl active, streaming " + this.zones + " zones");
+			} else {
+				device.log("extControl did not take, device reports " + xhr.response);
 			}
 		});
 	}
@@ -122,28 +168,20 @@ class MagRgbDevice {
 	/* extControl v2, big-endian:
 	 *   uint16 panelCount
 	 *   per panel: uint16 panelId, uint8 R, G, B, W, uint16 transitionTime  */
-	buildFrame(shutdown) {
-		const n = this.zones;
-
-		const rawTt = (typeof TransitionTime === "undefined") ? 0 : TransitionTime;
-		const tt    = Math.max(0, Math.min(10, parseInt(rawTt, 10) || 0));
+	buildFrame(s, shutdown) {
+		const n  = this.zones;
+		const tt = Math.max(0, Math.min(10, parseInt(s.transition, 10) || 0));
 
 		// Panel ID 0 is physically at the RIGHT-hand end, so the canvas (left to right)
 		// maps to descending panel IDs by default. FlipDirection is for a strip that
 		// has been mounted the other way round.
-		const rawFlip = (typeof FlipDirection === "undefined") ? false : FlipDirection;
-		const flip    = (rawFlip === true || rawFlip === "true");
-
-		const mode = (typeof LightingMode === "undefined") ? "Canvas" : LightingMode;
+		const flip = (s.flip === true || s.flip === "true");
 		const packet = [(n >> 8) & 0xFF, n & 0xFF];
 
 		let forced = null;
 
-		if (shutdown) {
-			forced = [0, 0, 0];
-		} else if (mode === "Forced") {
-			forced = (typeof forcedColor === "undefined") ? [0, 155, 222] : hexToRgb(forcedColor);
-		}
+		if (shutdown) { forced = [0, 0, 0]; }
+		else if (s.mode === "Forced") { forced = hexToRgb(s.forced); }
 
 		for (let i = 0; i < n; i++) {
 			const id = flip ? i : (n - 1 - i);
@@ -159,13 +197,14 @@ class MagRgbDevice {
 
 	sendFrame(shutdown = false) {
 		const now = Date.now();
+		const s   = settings();
 
-		if (!shutdown && now - this.lastFrame < this.frameInterval()) { return; }
+		if (!shutdown && now - this.lastFrame < this.frameInterval(s.rate)) { return; }
 		this.lastFrame = now;
 
 		if (now - this.lastArm > REARM_INTERVAL) { this.armExtControl(); }
 
-		udp.send(this.ip, this.streamPort, this.buildFrame(shutdown), BIG_ENDIAN);
+		udp.send(this.ip, this.streamPort, this.buildFrame(s, shutdown), BIG_ENDIAN);
 	}
 
 	setPower(on) {
@@ -177,7 +216,6 @@ class MagRgbDevice {
 export function Initialize() {
 	device.setName(controller.name);
 	device.addFeature("udp");
-	device.setImageFromUrl("https://raw.githubusercontent.com/Pop-Code/Secretlab-MagRGB-SignalRGB-plugin/main/assets/icon.png");
 	MAGRGB = new MagRgbDevice(controller);
 	MAGRGB.setupLeds();
 	MAGRGB.setPower(true);
@@ -192,7 +230,7 @@ export function Render() {
 export function Shutdown(suspend) {
 	MAGRGB.sendFrame(true);
 
-	const off = (typeof turnOffOnShutdown === "undefined") ? false : turnOffOnShutdown;
+	const off = settings().offOnExit;
 
 	if (off === true || off === "true") { MAGRGB.setPower(false); }
 }
