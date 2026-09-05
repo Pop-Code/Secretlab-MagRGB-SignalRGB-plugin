@@ -1,6 +1,7 @@
 export function Name() { return "Secretlab MAGRGB (Nanoleaf)"; }
 export function Version() { return "1.0.0"; }
 export function Type() { return "network"; }
+export function DeviceType() { return "ledstrip"; }
 export function Publisher() { return "local"; }
 export function Size() { return [41, 1]; }
 export function DefaultPosition() { return [0, 0]; }
@@ -103,7 +104,10 @@ class MagRgbDevice {
 		Http.request("PUT", url, { write: { command: "display", animType: "extControl", extControlVersion: "v2" } }, (xhr) => {
 			if (xhr.readyState !== 4) { return; }
 
-			if (xhr.status !== 200 && xhr.status !== 204) {
+			// The device answers 204 No Content with an empty body, which SignalRGB's
+			// XHR reports as status 0. Treat that as success - a real failure shows up
+			// as 401/403 (bad token) or 404.
+			if (xhr.status !== 200 && xhr.status !== 204 && xhr.status !== 0) {
 				device.log("extControl arm failed, HTTP " + xhr.status);
 			}
 		});
