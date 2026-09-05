@@ -15,7 +15,7 @@
   Usage:
     powershell -ExecutionPolicy Bypass -File magrgb-setup.ps1
     powershell -ExecutionPolicy Bypass -File magrgb-setup.ps1 -Ip 192.168.1.50
-    powershell -ExecutionPolicy Bypass -File magrgb-setup.ps1 -Zones 41
+    powershell -ExecutionPolicy Bypass -File magrgb-setup.ps1 -AuthToken <token>
 #>
 param(
   [string]$Ip         = "",     # skip discovery if you already know it
@@ -24,7 +24,7 @@ param(
   [int]   $StreamPort = 60222,
   [int]   $Zones      = 41,     # NL72S2 (2 m MAGRGB). Use magrgb-zones.ps1 for other sizes.
   [int]   $Seconds    = 45,     # how long to poll for the pairing window
-  [string]$Token      = ""      # inject a token you already hold; skips pairing
+  [string]$AuthToken  = ""      # inject a token you already hold; skips pairing
 )
 
 $ErrorActionPreference = 'Continue'
@@ -129,9 +129,10 @@ $base = "http://$($Ip):$Port/api/v1"
 
 # ==================================================================== 2. token
 Head "2/3  Auth token"
-$token = $null
-if ($Token) {
-  $token = $Token
+# NOTE: PowerShell variable names are case-INSENSITIVE, so $token and the $AuthToken
+# parameter must not differ only by case, or one silently clobbers the other.
+$token = $AuthToken
+if ($token) {
   Write-Host "Using the token passed on the command line" -ForegroundColor DarkGray
 } elseif (Test-Path $tokenFile) {
   try { $token = (Get-Content $tokenFile -Raw | ConvertFrom-Json).auth_token } catch { }
