@@ -43,6 +43,11 @@ It will:
 
 The token is saved to `tools/magrgb-token.json` (gitignored) and printed at the end.
 
+> ⚠️ **Your token is a credential.** It's printed to the console and stored in plaintext,
+> so scrub it before pasting logs into Discord, GitHub issues or anywhere public. It only
+> works from your own network, but there's no reason to hand it out. To revoke one:
+> `DELETE http://<strip-ip>:16021/api/v1/<token>`
+
 ### The pairing step
 
 The strip's local API is locked by default. Unlocking it needs two commands that only
