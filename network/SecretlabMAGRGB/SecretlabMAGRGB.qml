@@ -98,14 +98,10 @@ Item {
 						height: 34; width: 100
 						font.family: "Poppins"; font.bold: true
 						text: "Add"
-						onClicked: discovery.forceDiscover(discoverIP.text)
-					}
-
-					ToolButton {
-						height: 34; width: 100
-						font.family: "Poppins"; font.bold: true
-						text: "Remove"
-						onClicked: discovery.forceDelete(discoverIP.text)
+						onClicked: {
+							discovery.forceDiscover(discoverIP.text);
+							discoverIP.text = "";
+						}
 					}
 				}
 
@@ -114,7 +110,7 @@ Item {
 					wrapMode: Text.WordWrap
 					color: theme.primarytextcolor
 					font.family: "Poppins"; font.pixelSize: 11
-					text: "Each strip keeps its own token — set it on the strip's row below."
+					text: "Each strip below has its own token and its own Forget button."
 				}
 			}
 		}
