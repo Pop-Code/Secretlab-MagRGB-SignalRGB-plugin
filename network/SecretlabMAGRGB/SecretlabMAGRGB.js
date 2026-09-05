@@ -17,7 +17,6 @@ UpdateRate:readonly
 FlipDirection:readonly
 TransitionTime:readonly
 turnOffOnShutdown:readonly
-hexToRgb:readonly
 */
 
 export function ControllableParameters() {
@@ -180,8 +179,19 @@ class MagRgbDevice {
 
 		let forced = null;
 
-		if (shutdown) { forced = [0, 0, 0]; }
-		else if (s.mode === "Forced") { forced = hexToRgb(s.forced); }
+		/* Do NOT use hexToRgb() here. It appears in the type definitions only as a type
+		 * alias, not as a declared runtime global, and when it fails to resolve to an
+		 * indexable [r,g,b] every channel silently becomes 0 (undefined & 0xFF === 0) -
+		 * so Forced mode turned the strip black instead of throwing. createColorArray()
+		 * is the documented conversion and is what the WLED plugin uses; it returns a
+		 * flat [r,g,b] for a single LED in "Inline" order. */
+		if (shutdown) {
+			forced = [0, 0, 0];
+		} else if (s.mode === "Forced") {
+			const rgb = device.createColorArray(s.forced, 1, "Inline");
+
+			forced = (rgb && rgb.length >= 3) ? [rgb[0], rgb[1], rgb[2]] : [255, 255, 255];
+		}
 
 		for (let i = 0; i < n; i++) {
 			const id = flip ? i : (n - 1 - i);
