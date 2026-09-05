@@ -83,7 +83,7 @@ The strip appears with 41 addressable zones. No component to assign, no LED coun
 |---|---|---|
 | Lighting Mode | Canvas | `Forced` locks the whole strip to one colour |
 | Update rate | 30 fps | Drop to 20 if it stutters |
-| Reverse direction | on | Turn off if effects run backwards |
+| Flip direction | off | Only if your strip is mounted the other way round |
 | Transition | 0 | ×100 ms; 0 is lowest latency |
 | Turn strip OFF on shutdown | off | |
 
@@ -150,8 +150,8 @@ repeat panelCount times:
 ### Measured device behaviour (firmware 4.0.0, hardware 1.3.0)
 
 - **41 addressable zones**, panel IDs `0..40`.
-- **Panel ID 0 is at the right-hand end.** The plugin reverses the mapping by default so
-  the SignalRGB canvas isn't mirrored.
+- **Panel ID 0 is at the right-hand end.** The plugin maps the canvas to descending panel
+  IDs so it matches Screen Mirror and your other devices with no configuration.
 - `GET /panelLayout/*` returns **HTTP 500** — not implemented on this 1D device. Hence
   the hardcoded zone counts.
 - A frame containing **any out-of-range panel ID is rejected in full**, not partially
@@ -195,7 +195,7 @@ settings store and in the gitignored `tools/magrgb-token.json`.
 |---|---|
 | `HTTP 403` when pairing | `Enable API` was never switched on, or the 30 s window closed |
 | Setup finds nothing | VPN adapter picked instead of your LAN — pass `-LocalIp <your IP>`; or AP isolation / guest VLAN; or firewall blocking UDP 5353 |
-| Effects run backwards | Turn off **Reverse direction** |
+| Effects run backwards | Turn on **Flip direction** |
 | Strip stutters | Lower the update rate to 20 fps |
 | Colours freeze | Something else grabbed the stream (Nanoleaf Desktop's Screen Mirror). The plugin re-arms every 10 s; don't run both |
 

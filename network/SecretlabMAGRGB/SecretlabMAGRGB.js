@@ -14,7 +14,7 @@ discovery:readonly
 LightingMode:readonly
 forcedColor:readonly
 UpdateRate:readonly
-ReverseDirection:readonly
+FlipDirection:readonly
 TransitionTime:readonly
 turnOffOnShutdown:readonly
 hexToRgb:readonly
@@ -25,7 +25,7 @@ export function ControllableParameters() {
 		{ "property": "LightingMode",     "group": "settings", "label": "Lighting Mode", "type": "combobox", "values": ["Canvas", "Forced"], "default": "Canvas" },
 		{ "property": "forcedColor",      "group": "settings", "label": "Forced Color", "min": "0", "max": "360", "type": "color", "default": "#009bde" },
 		{ "property": "UpdateRate",       "group": "settings", "label": "Update rate", "type": "combobox", "values": ["10fps", "20fps", "30fps", "45fps"], "default": "30fps" },
-		{ "property": "ReverseDirection", "group": "settings", "label": "Reverse direction (zone 0 is on the right)", "type": "boolean", "default": "true" },
+		{ "property": "FlipDirection",   "group": "settings", "label": "Flip direction (only if the strip is mounted the other way round)", "type": "boolean", "default": "false" },
 		{ "property": "TransitionTime",   "group": "settings", "label": "Transition (x100ms, 0 = instant)", "type": "number", "min": "0", "max": "10", "default": "0" },
 		{ "property": "turnOffOnShutdown","group": "settings", "label": "Turn strip OFF on shutdown", "type": "boolean", "default": "false" },
 	];
@@ -119,7 +119,10 @@ class MagRgbDevice {
 	buildFrame(shutdown) {
 		const n  = this.zones;
 		const tt = Math.max(0, Math.min(10, parseInt(TransitionTime, 10) || 0));
-		const rev = (ReverseDirection !== false && ReverseDirection !== "false");
+		// Panel ID 0 is physically at the RIGHT-hand end, so the canvas (left to right)
+		// maps to descending panel IDs by default. FlipDirection is for a strip that
+		// has been mounted the other way round.
+		const flip = (FlipDirection === true || FlipDirection === "true");
 		const packet = [(n >> 8) & 0xFF, n & 0xFF];
 
 		let forced = null;
@@ -128,8 +131,7 @@ class MagRgbDevice {
 		else if (LightingMode === "Forced") { forced = hexToRgb(forcedColor); }
 
 		for (let i = 0; i < n; i++) {
-			// canvas runs left -> right; panel 0 sits at the right-hand end
-			const id = rev ? (n - 1 - i) : i;
+			const id = flip ? i : (n - 1 - i);
 			const c  = forced ? forced : device.color(i, 0);
 
 			packet.push((id >> 8) & 0xFF, id & 0xFF);
