@@ -41,7 +41,7 @@ Item {
 					      "NL72S2 = <b>41 zones</b>.<br><br>" +
 					      "<b>Step 1</b> &mdash; enter the strip's IP below and press Add.<br>" +
 					      "<b>Step 2</b> &mdash; give it a token, either way:<br>" +
-					      "&nbsp;&nbsp;&bull; paste one you already have, or<br>" +
+					      "&nbsp;&nbsp;&bull; paste one on the strip's row once it appears, or<br>" +
 					      "&nbsp;&nbsp;&bull; in <b>Nanoleaf Desktop</b>: select the strip &rarr; " +
 					      "<b>Enable API</b> ON &rarr; <b>Connect to API</b>. This plugin watches for " +
 					      "that 30 second window and stores the token by itself.<br><br>" +
@@ -110,38 +110,11 @@ Item {
 				}
 
 				Text {
+					width: parent.width
+					wrapMode: Text.WordWrap
 					color: theme.primarytextcolor
-					font.family: "Poppins"; font.pixelSize: 13; font.bold: true
-					text: "Auth token   (optional — leave empty to auto-pair)"
-				}
-
-				Row {
-					spacing: 8
-
-					Rectangle {
-						width: 308; height: 34; radius: 5
-						color: "#1a1a1a"
-						border.color: "#2a2a2a"; border.width: 2
-
-						TextField {
-							id: tokenField
-							anchors.fill: parent
-							anchors.margins: 2
-							leftPadding: 8
-							color: theme.primarytextcolor
-							font.family: "Poppins"; font.pixelSize: 12
-							verticalAlignment: TextInput.AlignVCenter
-							placeholderText: "paste token here"
-							background: Item { }
-						}
-					}
-
-					ToolButton {
-						height: 34; width: 100
-						font.family: "Poppins"; font.bold: true
-						text: "Save"
-						onClicked: discovery.setToken(discoverIP.text, tokenField.text)
-					}
+					font.family: "Poppins"; font.pixelSize: 11
+					text: "Each strip keeps its own token — set it on the strip's row below."
 				}
 			}
 		}
@@ -189,7 +162,7 @@ Item {
 							x: 10
 							y: 7
 							width: parent.width - 20
-							spacing: 2
+							spacing: 5
 
 							Text {
 								color: theme.primarytextcolor
@@ -205,6 +178,51 @@ Item {
 								      + (dev.model ? "   ·   " + dev.model : "")
 								      + (dev.token ? "   ·   paired" : "   ·   waiting for API authorization")
 								      + (dev.zones ? "   ·   " + dev.zones + " zones" : "")
+							}
+
+							// Per-strip token. Tokens are stored keyed by IP, so each strip
+							// on the network keeps its own independently.
+							Row {
+								spacing: 6
+
+								Rectangle {
+									width: 250; height: 30; radius: 4
+									color: "#141414"
+									border.color: "#2a2a2a"; border.width: 1
+
+									TextField {
+										id: rowToken
+										anchors.fill: parent
+										anchors.margins: 2
+										leftPadding: 8
+										color: theme.primarytextcolor
+										font.family: "Poppins"; font.pixelSize: 11
+										verticalAlignment: TextInput.AlignVCenter
+										placeholderText: dev.token ? "replace this strip's token" : "paste this strip's token"
+										background: Item { }
+										onAccepted: {
+											discovery.setToken(dev.ip, rowToken.text);
+											rowToken.text = "";
+										}
+									}
+								}
+
+								ToolButton {
+									height: 30; width: 90
+									font.family: "Poppins"; font.bold: true
+									text: dev.token ? "Replace" : "Save"
+									onClicked: {
+										discovery.setToken(dev.ip, rowToken.text);
+										rowToken.text = "";
+									}
+								}
+
+								ToolButton {
+									height: 30; width: 80
+									font.family: "Poppins"; font.bold: true
+									text: "Forget"
+									onClicked: discovery.forceDelete(dev.ip)
+								}
 							}
 						}
 					}
