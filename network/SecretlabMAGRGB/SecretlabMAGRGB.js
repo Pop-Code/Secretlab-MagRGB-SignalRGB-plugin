@@ -156,6 +156,7 @@ class MagRgbDevice {
 export function Initialize() {
 	device.setName(controller.name);
 	device.addFeature("udp");
+	device.setImageFromUrl("https://raw.githubusercontent.com/Pop-Code/Secretlab-MagRGB-SignalRGB-plugin/main/assets/icon.png");
 	MAGRGB = new MagRgbDevice(controller);
 	MAGRGB.setupLeds();
 	MAGRGB.setPower(true);
@@ -178,7 +179,7 @@ export function Shutdown(suspend) {
  * ===================================================================================== */
 
 export function DiscoveryService() {
-	this.IconUrl = "";
+	this.IconUrl = "https://raw.githubusercontent.com/Pop-Code/Secretlab-MagRGB-SignalRGB-plugin/main/assets/icon.png";
 	this.MDns = ["_nanoleafapi._tcp.local."];
 
 	this.Initialize = function () {

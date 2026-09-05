@@ -1,49 +1,26 @@
 <#
-  Secretlab MAGRGB (NL72S2) - zone discovery.
-  Reuses the token saved by magrgb-probe.ps1. No pairing window needed.
+  Secretlab MAGRGB (NL72S2) - manual zone-count finder.
+  YOU drive. Nothing changes until you press a key.
 
-  Usage:
-    powershell -ExecutionPolicy Bypass -File magrgb-zones.ps1
-    powershell -ExecutionPolicy Bypass -File magrgb-zones.ps1 -MaxZones 64
+  powershell -ExecutionPolicy Bypass -File magrgb-find.ps1
 #>
 param(
   [string]         = "192.168.1.50",
   [int]   $Port       = 16021,
   [int]   $StreamPort = 60222,
-  [int]   $MaxZones   = 32,
+  [int]   $Start      = 40,
+  [int]   $Ceiling    = 48,   # how many zones to blank before each paint
   [string]$Token
 )
 
 $ErrorActionPreference = 'Stop'
 $tokenFile = Join-Path $PSScriptRoot "magrgb-token.json"
-
 if (-not $Token) {
-  if (-not (Test-Path $tokenFile)) { Write-Host "No token file. Run magrgb-probe.ps1 first." -ForegroundColor Red; exit 1 }
+  if (-not (Test-Path $tokenFile)) { Write-Host "Run magrgb-probe.ps1 first." -ForegroundColor Red; exit 1 }
   $Token = (Get-Content $tokenFile -Raw | ConvertFrom-Json).auth_token
 }
 $base = "http://$($Ip):$Port/api/v1/$Token"
-function Head($t) { Write-Host ""; Write-Host "=== $t ===" -ForegroundColor Cyan }
 
-# ------------------------------------------------------------------ 1. dump everything
-Head "FULL DEVICE INFO (GET /)  <-- paste this whole block back"
-try {
-  (Invoke-RestMethod -Uri "$base/" -Method Get -TimeoutSec 10) | ConvertTo-Json -Depth 12
-} catch { Write-Host "failed: $($_.Exception.Message)" -ForegroundColor Red }
-
-Head "Other layout / state endpoints"
-foreach ($p in @("/panelLayout", "/panelLayout/globalOrientation", "/panelLayout/layout",
-                 "/state", "/state/colorMode", "/state/brightness", "/effects/select")) {
-  Write-Host ("--- GET {0}" -f $p) -ForegroundColor DarkGray
-  try {
-    $r = Invoke-RestMethod -Uri "$base$p" -Method Get -TimeoutSec 8
-    ($r | ConvertTo-Json -Depth 10)
-  } catch {
-    $c = ""; if ($_.Exception.Response) { $c = [int]$_.Exception.Response.StatusCode }
-    Write-Host "    HTTP $c" -ForegroundColor DarkYellow
-  }
-}
-
-# ------------------------------------------------------------------ 2. extControl helpers
 function New-Frame([int[]]$ids, [byte[][]]$cols, [int]$tt = 0) {
   $n = $ids.Count
   $b = New-Object 'System.Collections.Generic.List[byte]'
@@ -57,93 +34,88 @@ function New-Frame([int[]]$ids, [byte[][]]$cols, [int]$tt = 0) {
   return $b.ToArray()
 }
 
+$udp = New-Object System.Net.Sockets.UdpClient
+function Send-Frame([byte[]]$pkt, [int]$times = 12) {
+  for ($k = 0; $k -lt $times; $k++) { [void]$udp.Send($pkt, $pkt.Length, $Ip, $StreamPort); Start-Sleep -Milliseconds 25 }
+}
 function Arm() {
   $body = @{ write = @{ command = "display"; animType = "extControl"; extControlVersion = "v2" } } | ConvertTo-Json -Depth 5
-  try {
-    $r = Invoke-WebRequest -Uri "$base/effects" -Method Put -Body $body -ContentType "application/json" -TimeoutSec 8 -UseBasicParsing
-    Write-Host ("armed extControl v2 (HTTP {0})" -f $r.StatusCode) -ForegroundColor Green
-  } catch { Write-Host "arm failed: $($_.Exception.Message)" -ForegroundColor Red }
+  try { Invoke-WebRequest -Uri "$base/effects" -Method Put -Body $body -ContentType "application/json" -TimeoutSec 8 -UseBasicParsing | Out-Null }
+  catch { Write-Host "  (re-arm failed: $($_.Exception.Message))" -ForegroundColor DarkYellow }
 }
 
-$udp = New-Object System.Net.Sockets.UdpClient
-function Blast([byte[]]$pkt, [int]$times = 6, [int]$gap = 25) {
-  for ($k = 0; $k -lt $times; $k++) { [void]$udp.Send($pkt, $pkt.Length, $Ip, $StreamPort); Start-Sleep -Milliseconds $gap }
+# IMPORTANT: extControl only updates the panels present in the frame - every other
+# zone keeps its previous colour. So always blank the full ceiling before painting,
+# otherwise a smaller N looks identical to a larger one.
+function Clear-All() {
+  $ids = 0..($Ceiling - 1); $c = @()
+  for ($i = 0; $i -lt $Ceiling; $i++) { $c += ,([byte[]]@(0,0,0)) }
+  Send-Frame (New-Frame $ids $c) 6
+  Start-Sleep -Milliseconds 120
+}
+
+# paint zones 0..n-1; optional distinct colour on the last one
+function Show-Fill([int]$n, [switch]$MarkLast) {
+  Clear-All
+  $ids = 0..($n - 1); $c = @()
+  for ($i = 0; $i -lt $n; $i++) { $c += ,([byte[]]@(255,0,0)) }
+  if ($MarkLast) { $c[$n - 1] = [byte[]]@(0,0,255) }
+  Send-Frame (New-Frame $ids $c)
+}
+function Show-Only([int]$n, [int]$idx, [byte[]]$col) {
+  Clear-All
+  $ids = 0..($n - 1); $c = @()
+  for ($i = 0; $i -lt $n; $i++) { $c += ,([byte[]]@(0,0,0)) }
+  $c[$idx] = $col
+  Send-Frame (New-Frame $ids $c)
 }
 
 Arm
+$N = $Start
+$mark = $false
 
-# ------------------------------------------------------------------ 3. baseline
-Head "TEST 1 - baseline, 1 panel (id 0)"
-Write-Host "Expect: whole strip WHITE, then whole strip RED." -ForegroundColor Yellow
-Blast (New-Frame @(0) @(,[byte[]]@(255,255,255))) 8; Start-Sleep -Milliseconds 900
-Blast (New-Frame @(0) @(,[byte[]]@(255,0,0)))     8; Start-Sleep -Milliseconds 900
-Read-Host "Did the strip respond? (press Enter to continue)" | Out-Null
+Write-Host ""
+Write-Host "  Secretlab MAGRGB - manual zone finder" -ForegroundColor Cyan
+Write-Host "  ------------------------------------" -ForegroundColor Cyan
+Write-Host "  All zones 0..N-1 are lit RED. Adjust N until the WHOLE strip is lit"
+Write-Host "  with nothing left over and nothing broken."
+Write-Host ""
+Write-Host "   n / Enter  N + 1          N - 1        p"
+Write-Host "   N / PageUp N + 5          N - 5        P"
+Write-Host "   m          toggle BLUE marker on the last zone"
+Write-Host "   0          light ONLY zone 0    (red)   -> which end is this?"
+Write-Host "   l          light ONLY zone N-1  (blue)  -> which end is this?"
+Write-Host "   a          re-arm extControl (if the strip stops responding)"
+Write-Host "   r          repaint current N"
+Write-Host "   f          FINISH - accept current N"
+Write-Host "   q          quit"
+Write-Host ""
 
-# ------------------------------------------------------------------ 4. does it accept N panels?
-Head "TEST 2 - gradient across $MaxZones declared panels (ids 0..$($MaxZones-1))"
-Write-Host "Watch closely: a RED->BLUE GRADIENT means per-zone works." -ForegroundColor Yellow
-Write-Host "A single flat colour (or nothing) means the strip is one zone." -ForegroundColor Yellow
-$ids = 0..($MaxZones - 1)
-$cols = @()
-for ($i = 0; $i -lt $MaxZones; $i++) {
-  $f = $i / [double]($MaxZones - 1)
-  $cols += ,([byte[]]@([byte](255 * (1 - $f)), 0, [byte](255 * $f)))
-}
-Blast (New-Frame $ids $cols) 20 40
-Start-Sleep -Milliseconds 1500
-Read-Host "Gradient, or one flat colour? (press Enter to continue)" | Out-Null
+Show-Fill $N -MarkLast:$mark
 
-# ------------------------------------------------------------------ 5. walk a dot
-Head "TEST 3 - white dot walking through ids 0..$($MaxZones-1)"
-Write-Host "If a dot MOVES along the strip, note roughly how many distinct steps you see." -ForegroundColor Yellow
-for ($pass = 0; $pass -lt 3; $pass++) {
-  for ($p = 0; $p -lt $MaxZones; $p++) {
-    $c = @()
-    for ($i = 0; $i -lt $MaxZones; $i++) { $c += ,([byte[]]@(0,0,0)) }
-    $c[$p] = [byte[]]@(255,255,255)
-    $pkt = New-Frame $ids $c
-    [void]$udp.Send($pkt, $pkt.Length, $Ip, $StreamPort)
-    Start-Sleep -Milliseconds 60
+while ($true) {
+  Write-Host ("  N = {0,3}   packet {1,4} bytes   marker {2}" -f $N, (2 + $N * 8), $(if ($mark) { "ON" } else { "off" })) -ForegroundColor Green
+  $k = Read-Host "  >"
+
+  switch -CaseSensitive ($k) {
+    ""   { $N += 1;  Show-Fill $N -MarkLast:$mark }
+    "n"  { $N += 1;  Show-Fill $N -MarkLast:$mark }
+    "p"  { $N = [Math]::Max(1, $N - 1); Show-Fill $N -MarkLast:$mark }
+    "N"  { $N += 5;  Show-Fill $N -MarkLast:$mark }
+    "P"  { $N = [Math]::Max(1, $N - 5); Show-Fill $N -MarkLast:$mark }
+    "m"  { $mark = -not $mark; Show-Fill $N -MarkLast:$mark }
+    "r"  { Show-Fill $N -MarkLast:$mark }
+    "a"  { Arm; Show-Fill $N -MarkLast:$mark; Write-Host "  re-armed" -ForegroundColor DarkGray }
+    "0"  { Show-Only $N 0 ([byte[]]@(255,0,0));       Write-Host "  zone 0 only (RED) - which end of the strip?" -ForegroundColor Yellow }
+    "l"  { Show-Only $N ($N-1) ([byte[]]@(0,0,255));  Write-Host ("  zone {0} only (BLUE) - which end?" -f ($N-1)) -ForegroundColor Yellow }
+    "f"  {
+      Write-Host ""
+      Write-Host ("  ZONE COUNT = {0}" -f $N) -ForegroundColor Cyan
+      Write-Host "  Send me this number, plus which end zone 0 is on (keys 0 and l)." -ForegroundColor Cyan
+      Send-Frame (New-Frame (0..($N-1)) (@(,[byte[]]@(0,40,120)) * $N)) 6
+      $udp.Close(); exit 0
+    }
+    "q"  { $udp.Close(); exit 0 }
+    default { Write-Host "  ?" -ForegroundColor DarkGray }
   }
 }
-Start-Sleep -Milliseconds 800
-
-# ------------------------------------------------------------------ 6. half/half
-Head "TEST 4 - hard split: first half RED, second half GREEN ($MaxZones panels)"
-$c = @()
-for ($i = 0; $i -lt $MaxZones; $i++) {
-  if ($i -lt $MaxZones / 2) { $c += ,([byte[]]@(255,0,0)) } else { $c += ,([byte[]]@(0,255,0)) }
-}
-Blast (New-Frame $ids $c) 25 40
-Start-Sleep -Milliseconds 1500
-
-# ------------------------------------------------------------------ 7. sustained rate test
-Head "TEST 5 - sustained 30 Hz for 6 s (smoothness / dropout check)"
-$sw = [System.Diagnostics.Stopwatch]::StartNew()
-$frames = 0
-while ($sw.ElapsedMilliseconds -lt 6000) {
-  $phase = ($sw.ElapsedMilliseconds / 1000.0)
-  $c = @()
-  for ($i = 0; $i -lt $MaxZones; $i++) {
-    $v = [Math]::Sin($phase * 3 + $i * 0.4) * 0.5 + 0.5
-    $c += ,([byte[]]@([byte](255 * $v), 0, [byte](255 * (1 - $v))))
-  }
-  $pkt = New-Frame $ids $c
-  [void]$udp.Send($pkt, $pkt.Length, $Ip, $StreamPort)
-  $frames++
-  Start-Sleep -Milliseconds 33
-}
-$sw.Stop()
-Write-Host ("sent {0} frames in {1} ms" -f $frames, $sw.ElapsedMilliseconds)
-
-# turn it back to a calm colour
-Blast (New-Frame @(0) @(,[byte[]]@(0,40,120))) 5
-$udp.Close()
-
-Head "Report back"
-Write-Host "1) TEST 1 - did the strip change colour at all?"
-Write-Host "2) TEST 2 - gradient or one flat colour?"
-Write-Host "3) TEST 3 - did a dot move? roughly how many steps?"
-Write-Host "4) TEST 4 - two halves in different colours, or one colour?"
-Write-Host "5) TEST 5 - smooth, or stuttery/laggy?"
-Write-Host "Plus the FULL DEVICE INFO block from the top."

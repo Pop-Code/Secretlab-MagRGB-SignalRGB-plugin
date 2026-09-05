@@ -4,92 +4,105 @@ import QtQuick.Controls 2.15
 Item {
 	anchors.fill: parent
 
+	readonly property int panelWidth: 470
+	readonly property int pad: 12
+
 	Column {
 		width: parent.width
-		height: parent.height
-		spacing: 8
+		spacing: 10
 
-		// ---------------------------------------------------------------- info
+		// ------------------------------------------------------------------ intro
 		Rectangle {
-			width: 470
-			height: 118
+			width: panelWidth
+			height: introCol.implicitHeight + (pad * 2)
 			color: "#1c2b3a"
 			radius: 5
 
 			Column {
-				x: 12; y: 10
-				width: parent.width - 24
-				spacing: 2
+				id: introCol
+				x: pad
+				y: pad
+				width: parent.width - (pad * 2)
+				spacing: 6
 
 				Text {
+					width: parent.width
 					color: theme.primarytextcolor
 					font.family: "Poppins"; font.pixelSize: 14; font.bold: true
-					text: "Secretlab MAGRGB / Nanoleaf Essentials"
+					text: "Secretlab MAGRGB — Nanoleaf Essentials"
 				}
 				Text {
+					width: parent.width
+					wrapMode: Text.WordWrap
 					color: theme.primarytextcolor
 					font.family: "Poppins"; font.pixelSize: 11
 					textFormat: Text.RichText
-					text: "NL72S2 over Nanoleaf extControl v2 &mdash; <b>41 zones</b>, UDP 60222.<br><br>" +
-					      "<b>Pairing (once):</b> add the strip by IP below, then in " +
-					      "<b>Nanoleaf Desktop</b> select it &rarr; <b>Enable API</b> ON &rarr; " +
-					      "<b>Connect to API</b>. This plugin polls for that 30 s window and " +
-					      "stores the token itself.<br>" +
-					      "Already have a token? Paste it below instead."
+					text: "Per-zone streaming over Nanoleaf extControl v2 (UDP 60222). " +
+					      "NL72S2 = <b>41 zones</b>.<br><br>" +
+					      "<b>Step 1</b> &mdash; enter the strip's IP below and press Add.<br>" +
+					      "<b>Step 2</b> &mdash; give it a token, either way:<br>" +
+					      "&nbsp;&nbsp;&bull; paste one you already have, or<br>" +
+					      "&nbsp;&nbsp;&bull; in <b>Nanoleaf Desktop</b>: select the strip &rarr; " +
+					      "<b>Enable API</b> ON &rarr; <b>Connect to API</b>. This plugin watches for " +
+					      "that 30 second window and stores the token by itself.<br><br>" +
+					      "Needed once only. The token survives reboots and power cycles."
 				}
 			}
 		}
 
-		// ---------------------------------------------------------------- manual add
+		// ------------------------------------------------------------------ add by IP
 		Rectangle {
-			width: 470
-			height: 156
+			width: panelWidth
+			height: addCol.implicitHeight + (pad * 2)
 			color: "#141414"
 			radius: 5
 
 			Column {
-				x: 12; y: 8
-				spacing: 4
+				id: addCol
+				x: pad
+				y: pad
+				width: parent.width - (pad * 2)
+				spacing: 8
 
 				Text {
 					color: theme.primarytextcolor
-					font.family: "Poppins"; font.pixelSize: 14; font.bold: true
-					text: "Add strip by IP address"
+					font.family: "Poppins"; font.pixelSize: 13; font.bold: true
+					text: "Strip IP address"
 				}
 
 				Row {
 					spacing: 8
 
 					Rectangle {
-						width: 210; height: 32; radius: 5
-						color: "#141414"
-						border.color: "#1c1c1c"; border.width: 2
+						width: 200; height: 34; radius: 5
+						color: "#1a1a1a"
+						border.color: "#2a2a2a"; border.width: 2
 
 						TextField {
 							id: discoverIP
 							anchors.fill: parent
-							leftPadding: 10
+							anchors.margins: 2
+							leftPadding: 8
 							color: theme.primarytextcolor
-							font.family: "Poppins"; font.pixelSize: 15
+							font.family: "Poppins"; font.pixelSize: 14
 							verticalAlignment: TextInput.AlignVCenter
 							placeholderText: "192.168.1.50"
 							validator: RegularExpressionValidator {
 								regularExpression: /^((?:[0-1]?[0-9]?[0-9]|2[0-4][0-9]|25[0-5])\.){0,3}(?:[0-1]?[0-9]?[0-9]|2[0-4][0-9]|25[0-5])$/
 							}
 							background: Item { }
-							onEditingFinished: discovery.forceDiscover(discoverIP.text)
 						}
 					}
 
 					ToolButton {
-						height: 32; width: 110
+						height: 34; width: 100
 						font.family: "Poppins"; font.bold: true
 						text: "Add"
 						onClicked: discovery.forceDiscover(discoverIP.text)
 					}
 
 					ToolButton {
-						height: 32; width: 110
+						height: 34; width: 100
 						font.family: "Poppins"; font.bold: true
 						text: "Remove"
 						onClicked: discovery.forceDelete(discoverIP.text)
@@ -98,68 +111,102 @@ Item {
 
 				Text {
 					color: theme.primarytextcolor
-					font.family: "Poppins"; font.pixelSize: 12
-					text: "Existing auth token (optional)"
+					font.family: "Poppins"; font.pixelSize: 13; font.bold: true
+					text: "Auth token   (optional — leave empty to auto-pair)"
 				}
 
 				Row {
 					spacing: 8
 
 					Rectangle {
-						width: 330; height: 32; radius: 5
-						color: "#141414"
-						border.color: "#1c1c1c"; border.width: 2
+						width: 308; height: 34; radius: 5
+						color: "#1a1a1a"
+						border.color: "#2a2a2a"; border.width: 2
 
 						TextField {
 							id: tokenField
 							anchors.fill: parent
-							leftPadding: 10
+							anchors.margins: 2
+							leftPadding: 8
 							color: theme.primarytextcolor
-							font.family: "Poppins"; font.pixelSize: 13
+							font.family: "Poppins"; font.pixelSize: 12
 							verticalAlignment: TextInput.AlignVCenter
-							placeholderText: "paste token from tools/magrgb-token.json"
+							placeholderText: "paste token here"
 							background: Item { }
-							onEditingFinished: discovery.setToken(discoverIP.text, tokenField.text)
 						}
 					}
 
 					ToolButton {
-						height: 32; width: 110
+						height: 34; width: 100
 						font.family: "Poppins"; font.bold: true
-						text: "Save token"
+						text: "Save"
 						onClicked: discovery.setToken(discoverIP.text, tokenField.text)
 					}
 				}
 			}
 		}
 
-		// ---------------------------------------------------------------- discovered list
-		Repeater {
-			model: service.controllers
+		// ------------------------------------------------------------------ devices
+		Rectangle {
+			width: panelWidth
+			height: listCol.implicitHeight + (pad * 2)
+			color: "#141414"
+			radius: 5
 
-			delegate: Rectangle {
-				width: 470
-				height: 54
-				radius: 5
-				color: dev.announced ? "#003EFF" : "#141414"
+			Column {
+				id: listCol
+				x: pad
+				y: pad
+				width: parent.width - (pad * 2)
+				spacing: 6
 
-				property var dev: model.modelData.obj
+				Text {
+					color: theme.primarytextcolor
+					font.family: "Poppins"; font.pixelSize: 13; font.bold: true
+					text: "Discovered strips"
+				}
 
-				Column {
-					x: 12; y: 8
-					spacing: 2
+				Text {
+					visible: service.controllers.length === 0
+					color: theme.primarytextcolor
+					font.family: "Poppins"; font.pixelSize: 11
+					text: "none yet — add one by IP above"
+				}
 
-					Text {
-						color: theme.primarytextcolor
-						font.family: "Poppins"; font.pixelSize: 14; font.bold: true
-						text: dev.name
-					}
-					Text {
-						color: theme.primarytextcolor
-						font.family: "Poppins"; font.pixelSize: 11
-						text: dev.ip
-						      + (dev.token ? "  -  paired" : "  -  waiting for API authorization")
-						      + (dev.zones ? "  -  " + dev.zones + " zones" : "")
+				Repeater {
+					model: service.controllers
+
+					delegate: Rectangle {
+						width: listCol.width
+						height: rowCol.implicitHeight + 14
+						radius: 5
+						color: dev.announced ? "#0b3a6b" : "#1f1f1f"
+
+						property var dev: model.modelData.obj
+
+						Column {
+							id: rowCol
+							x: 10
+							y: 7
+							width: parent.width - 20
+							spacing: 2
+
+							Text {
+								color: theme.primarytextcolor
+								font.family: "Poppins"; font.pixelSize: 13; font.bold: true
+								text: dev.name
+							}
+							Text {
+								width: parent.width
+								wrapMode: Text.WordWrap
+								color: theme.primarytextcolor
+								font.family: "Poppins"; font.pixelSize: 11
+								text: dev.ip
+								      + (dev.model ? "   ·   " + dev.model : "")
+								      + (dev.token ? "   ·   paired" : "   ·   waiting for API authorization")
+								      + (dev.zones ? "   ·   " + dev.zones + " zones" : "")
+							}
+						}
 					}
 				}
 			}
