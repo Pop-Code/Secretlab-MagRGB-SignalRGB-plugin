@@ -1,7 +1,6 @@
 export function Name() { return "Secretlab MAGRGB (Nanoleaf)"; }
 export function Version() { return "1.0.0"; }
 export function Type() { return "network"; }
-export function DeviceType() { return "ledstrip"; }
 export function Publisher() { return "local"; }
 export function Size() { return [41, 1]; }
 export function DefaultPosition() { return [0, 0]; }
