@@ -117,6 +117,7 @@ The strip is a Nanoleaf Essentials-class device speaking three protocols:
 | Port | Protocol | Used for |
 |---|---|---|
 | 16021/TCP | Nanoleaf OpenAPI (`_nanoleafapi._tcp`) | pairing, arming extControl |
+| 5353/UDP | mDNS `_ltpdu._tcp` | discovery (see note below) |
 | 60222/UDP | Nanoleaf external control v2 | the pixel stream |
 | 12566/TCP | LTPDU (proprietary, encrypted) | unlocking the OpenAPI, effects |
 

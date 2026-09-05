@@ -240,8 +240,20 @@ export function Shutdown(suspend) {
  * ===================================================================================== */
 
 export function DiscoveryService() {
-	this.IconUrl = "https://raw.githubusercontent.com/Pop-Code/Secretlab-MagRGB-SignalRGB-plugin/main/assets/icon.png";
-	this.MDns = ["_nanoleafapi._tcp.local."];
+	this.IconUrl = ICON_URL;
+
+	/* Browse _ltpdu, NOT _nanoleafapi.
+	 *
+	 * These strips advertise both: _nanoleafapi._tcp on 16021 and _ltpdu._tcp on 12566.
+	 * SignalRGB own Nanoleaf addon already claims _nanoleafapi._tcp.local., so a second
+	 * plugin claiming it never receives the announcements - which is why discovery here
+	 * silently did nothing. _ltpdu is unclaimed, and only Essentials-class hardware (the
+	 * Secretlab co-branded strips) advertises it, so it also filters out the ordinary
+	 * Nanoleaf panels this plugin cannot drive.
+	 *
+	 * The SRV record for _ltpdu points at 12566. Only the address is taken from it;
+	 * the OpenAPI port is always 16021. */
+	this.MDns = ["_ltpdu._tcp.local."];
 
 	this.Initialize = function () {
 		service.log("Secretlab MAGRGB discovery starting");

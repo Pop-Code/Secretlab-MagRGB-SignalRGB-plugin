@@ -39,7 +39,8 @@ Item {
 					textFormat: Text.RichText
 					text: "Per-zone streaming over Nanoleaf extControl v2 (UDP 60222). " +
 					      "NL72S2 = <b>41 zones</b>.<br><br>" +
-					      "<b>Step 1</b> &mdash; enter the strip's IP below and press Add.<br>" +
+					      "<b>Step 1</b> &mdash; your strip should appear below on its own. " +
+					      "If it does not, add it by IP.<br>" +
 					      "<b>Step 2</b> &mdash; give it a token, either way:<br>" +
 					      "&nbsp;&nbsp;&bull; paste one on the strip's row once it appears, or<br>" +
 					      "&nbsp;&nbsp;&bull; in <b>Nanoleaf Desktop</b>: select the strip &rarr; " +
@@ -67,7 +68,7 @@ Item {
 				Text {
 					color: theme.primarytextcolor
 					font.family: "Poppins"; font.pixelSize: 13; font.bold: true
-					text: "Strip IP address"
+					text: "Add a strip by IP  (only if it did not appear below)"
 				}
 
 				Row {
