@@ -1,6 +1,10 @@
 export function Name() { return "Secretlab MAGRGB (Nanoleaf)"; }
 export function Version() { return "1.0.0"; }
 export function Type() { return "network"; }
+// Valid values, taken from the shipped plugins (the docs omit this export entirely):
+// keyboard mouse lightingcontroller other mousepad headphones aio gpu motherboard
+// lcd speakers microphone dongle ram case
+export function DeviceType() { return "lightingcontroller"; }
 export function Publisher() { return "local"; }
 export function Size() { return [41, 1]; }
 export function DefaultPosition() { return [0, 0]; }
