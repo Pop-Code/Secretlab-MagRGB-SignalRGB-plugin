@@ -72,8 +72,12 @@ reboots, power cycles and app restarts. Only a factory reset requires redoing it
 
 In SignalRGB → **Secretlab MAGRGB (Nanoleaf)**:
 
-1. Enter the IP → **Add**
-2. Paste the token → **Save**  *(or leave blank and use the pairing window)*
+1. The strip should appear on its own. If it doesn't, enter its IP and press **Add**.
+2. On the strip's row, paste the token and press **Save**.
+   *(Or leave it empty and use the Nanoleaf Desktop pairing window — the plugin watches
+   for it and stores the token itself.)*
+
+Each strip carries its own token and its own **Forget** button, so several can coexist.
 
 The strip appears with 41 addressable zones. No component to assign, no LED count to set.
 
@@ -172,7 +176,26 @@ POST openapi/pair   [1]    opens a 30-second /api/v1/new window
 Both are LTPDU-only, which is why Nanoleaf Desktop is needed for that one step. A
 standalone LTPDU client would remove the dependency entirely — contributions welcome.
 
+### Discovery
+
+The plugin browses `_ltpdu._tcp.local.`, **not** `_nanoleafapi._tcp.local.`, even though
+the strip advertises both.
+
+SignalRGB ships its own Nanoleaf addon, and it already claims `_nanoleafapi._tcp.local.`.
+A second plugin claiming the same service type never receives the announcements — so
+discovery here silently did nothing until it was moved. `_ltpdu` is unclaimed, and only
+Essentials-class hardware advertises it, so it doubles as a filter against the ordinary
+Nanoleaf panels this plugin cannot drive.
+
+The SRV record for `_ltpdu` points at port 12566. Only the address is taken from it; the
+OpenAPI port is always 16021.
+
 ---
+
+## Testing
+
+See [TESTING.md](TESTING.md) for the test plan - five levels from a two-minute smoke test
+to a full pairing cycle from zero, plus the list of what is still unverified.
 
 ## Files
 
@@ -181,6 +204,7 @@ network/SecretlabMAGRGB/SecretlabMAGRGB.js     the plugin
 network/SecretlabMAGRGB/SecretlabMAGRGB.qml    its panel in the SignalRGB UI
 tools/magrgb-setup.ps1                         discover + pair + verify
 tools/magrgb-zones.ps1                         interactive zone-count finder
+TESTING.md                                     test plan
 assets/icon.png                                plugin icon
 ```
 
