@@ -49,7 +49,7 @@ export function ControllableParameters() {
  *     reads "*ExtControl*".
  * ===================================================================================== */
 
-const ICON_URL = "https://raw.githubusercontent.com/Pop-Code/Secretlab-MagRGB-SignalRGB-plugin/main/assets/icon.png";
+const ICON_URL = "https://raw.githubusercontent.com/Pop-Code/Secretlab-MagRGB-SignalRGB-plugin/main/assets/icon.jpg";
 
 const MODEL_ZONES     = { "NL72S2": 41 };
 const FALLBACK_ZONES  = 41;

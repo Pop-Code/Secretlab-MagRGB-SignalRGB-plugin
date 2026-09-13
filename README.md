@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="assets/icon.png" width="120" alt="">
+  <img src="assets/icon.jpg" width="120" alt="">
 </p>
 
 <h1 align="center">Secretlab MAGRGB — SignalRGB plugin</h1>
@@ -205,7 +205,7 @@ network/SecretlabMAGRGB/SecretlabMAGRGB.qml    its panel in the SignalRGB UI
 tools/magrgb-setup.ps1                         discover + pair + verify
 tools/magrgb-zones.ps1                         interactive zone-count finder
 TESTING.md                                     test plan
-assets/icon.png                                plugin icon
+assets/icon.jpg                                plugin icon
 ```
 
 **No credentials are stored in this repository.** Tokens live only in SignalRGB's own
