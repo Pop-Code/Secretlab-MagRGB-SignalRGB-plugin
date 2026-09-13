@@ -221,6 +221,47 @@ Item {
 									onClicked: discovery.forceDelete(dev.ip)
 								}
 							}
+
+							// Manual zone-count override. The NL72S2 model string covers strip
+							// variants of different physical lengths (e.g. a 41-LED strip and a
+							// 48-LED "XL" strip), and the firmware has no way to report which one
+							// is connected. Leave blank to use the model default.
+							Row {
+								spacing: 6
+
+								Rectangle {
+									width: 250; height: 30; radius: 4
+									color: "#141414"
+									border.color: "#2a2a2a"; border.width: 1
+
+									TextField {
+										id: rowZones
+										anchors.fill: parent
+										anchors.margins: 2
+										leftPadding: 8
+										color: theme.primarytextcolor
+										font.family: "Poppins"; font.pixelSize: 11
+										verticalAlignment: TextInput.AlignVCenter
+										validator: IntValidator { bottom: 1; top: 500 }
+										placeholderText: "zone count override, e.g. 48 (blank = model default)"
+										background: Item { }
+										onAccepted: {
+											discovery.setZones(dev.ip, rowZones.text);
+											rowZones.text = "";
+										}
+									}
+								}
+
+								ToolButton {
+									height: 30; width: 90
+									font.family: "Poppins"; font.bold: true
+									text: "Set zones"
+									onClicked: {
+										discovery.setZones(dev.ip, rowZones.text);
+										rowZones.text = "";
+									}
+								}
+							}
 						}
 					}
 				}

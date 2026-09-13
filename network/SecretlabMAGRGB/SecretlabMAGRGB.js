@@ -311,9 +311,33 @@ export function DiscoveryService() {
 		service.log("Token stored for " + ip);
 	};
 
+	/* Manual zone-count override for strip variants that share a model string with a
+	 * different physical length (e.g. NL72S2 covers both a 41-LED and a 48-LED "XL"
+	 * strip). Stored per-IP, same pattern as setToken(). Call once, then re-identify
+	 * so it takes effect immediately instead of waiting for the next reconnect. */
+	this.setZones = function (ip, count) {
+		if (!this.isValidIP(ip)) { service.log("not a valid IPv4: " + ip); return; }
+
+		const n = parseInt(count, 10);
+
+		if (!n || n < 1 || n > 500) { service.log("zone count looks wrong, ignoring: " + count); return; }
+
+		service.saveSetting(ip, "zonesOverride", String(n));
+
+		const c = service.getController(ip);
+
+		if (c !== undefined) { c.zones = 0; c.announced = false; c.identify(); }
+
+		service.log("Zone override set to " + n + " for " + ip);
+	};
+
 	this.forceDelete = function (ip) {
 		for (const c of service.controllers) {
-			if (c.obj.ip === ip) { service.removeSetting(ip, "token"); service.removeController(c); }
+			if (c.obj.ip === ip) {
+				service.removeSetting(ip, "token");
+				service.removeSetting(ip, "zonesOverride");
+				service.removeController(c);
+			}
 		}
 
 		const raw = service.getSetting("manual", "devices");
@@ -412,7 +436,13 @@ class MagRgbController {
 	}
 
 	/* GET / works on this firmware; panelLayout does not, so the zone count comes from
-	 * the model table. Try panelLayout anyway in case other models land here. */
+	 * the model table. Try panelLayout anyway in case other models land here.
+	 *
+	 * MODEL_ZONES is a per-model default, not a per-unit fact: the NL72S2 model string
+	 * is shared by at least a 41-LED strip and a 48-LED "XL" variant, and the firmware
+	 * gives no way to tell them apart (panelLayout is unimplemented on this hardware).
+	 * A manual override, set once via DiscoveryService.setZones() and stored per-IP,
+	 * takes priority over the model table so an XL owner isn't stuck at 41. */
 	identify() {
 		Http.request("GET", "http://" + this.ip + ":" + this.port + "/api/v1/" + this.token + "/", null, (xhr) => {
 			if (xhr.readyState !== 4) { return; }
@@ -439,11 +469,16 @@ class MagRgbController {
 				         ? info.panelLayout.layout.positionData : null;
 
 				if (pd && pd.length) { zones = pd.length; }
-				if (!zones && MODEL_ZONES[this.model]) { zones = MODEL_ZONES[this.model]; }
 			} catch (e) { /* fall through */ }
 
+			const override = parseInt(service.getSetting(this.id, "zonesOverride"), 10);
+
+			if (!zones && override > 0) { zones = override; }
+			if (!zones && MODEL_ZONES[this.model]) { zones = MODEL_ZONES[this.model]; }
+
 			this.zones = zones || FALLBACK_ZONES;
-			service.log(this.name + " (" + this.model + "): " + this.zones + " zones");
+			service.log(this.name + " (" + this.model + "): " + this.zones + " zones" +
+				(override > 0 ? " (manual override)" : ""));
 			this.announce();
 		});
 	}
